@@ -1,19 +1,20 @@
+# @hub LzgkgCuRbhs5 e2df26b51cff8deacdc7a17ce41ff4d5874f8bfc8bf996b16cb2b3fabae1195f
 # @name    Bilibili Live
 # @desc    Bilibili live status and follower count
 # @author  Tony Chang (github.com/tony-aptx4869)
-# @version 1.8
+# @version 1.9
 # @icons   bilibiliblink, bilibililive
 # @config  roomid          text    "Room ID"      default="6" help="The number in live.bilibili.com/<roomid>"
 # @config  nicon           text    "Normal Icon"  default="bilibiliblink"   help="Custom Normal Icon"
 # @config  licon           text    "Living Icon"  default="bilibililive"    help="Custom Living Icon"
 # @config  every           number  "Refresh"      default=1   min=1   max=1440    unit=min
 # @config  duration        number  "Duration"     default=10  min=0   max=3600    unit=s    help="Set 0 = System Time per app"
-# @config  show_fans       bool    "Show Fans"    default=true    help="Show Fans after Live Online in Living Status"
+# @config  showfans        bool    "Show Follower Count"    default=true    help="Show Follower Count after Viewers Online in Living Status"
 
 class BilibiliLive
   var period, nicon, licon, ic, label, tint, live, page, showing
   var live_label, fans_label, ticks, fails, in_flight, timeout, flip_timer
-  var show_start, flipped, total, live_ms, fans_ms, show_fans
+  var show_start, flipped, total, live_ms, fans_ms, showfans
 
   def init()
     self.period = store.get("every") * 60
@@ -32,8 +33,8 @@ class BilibiliLive
     if self.total == nil self.total = 7000 end
     self.live_ms = int(self.total * 0.7)
     self.fans_ms = self.total - self.live_ms
-    self.show_fans = store.get("show_fans")
-    if self.show_fans == nil self.show_fans = true end
+    self.showfans = store.get("showfans")
+    if self.showfans == nil self.showfans = true end
     self.live = false
     self.page = 0
     self.showing = false
@@ -85,7 +86,7 @@ class BilibiliLive
             if !self.showing self.page = 0 end
             self.ic = (self.page == 1 || !self.live) ? self.nicon : self.licon
             self.label = (self.page == 1 || !self.live) ? self.fans_label : self.live_label
-            if self.showing && self.live && self.show_fans && !self.flipped && self.flip_timer == nil
+            if self.showing && self.live && self.showfans && !self.flipped && self.flip_timer == nil
               var left = self.live_ms - (now_ms() - self.show_start)
               if left < 500 left = 500 end
               self.flip_timer = timer.after(left, / -> self.flip_fans())
@@ -144,7 +145,7 @@ class BilibiliLive
     self.page = 0
     self.ic = self.live ? self.licon : self.nicon
     self.label = self.live ? self.live_label : self.fans_label
-    if self.live && self.show_fans
+    if self.live && self.showfans
       self.flip_timer = timer.after(self.live_ms, / -> self.flip_fans())
     end
   end
