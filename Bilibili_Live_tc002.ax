@@ -1,0 +1,175 @@
+# @name    Bilibili Live
+# @desc    Bilibili live status and follower count for TC002 (52x16)
+# @author  Tony Chang (github.com/tony-aptx4869)
+# @version 1.0
+# @display 52x16
+# @icons   bilibiliblink, bilibililive
+# @config  roomid          text    "Room ID"      default="6" help="The number in live.bilibili.com/<roomid>"
+# @config  nicon           text    "Normal Icon"  default="bilibiliblink"   help="Custom Normal Icon"
+# @config  licon           text    "Living Icon"  default="bilibililive"    help="Custom Living Icon"
+# @config  every           number  "Refresh"      default=1   min=1   max=1440    unit=min
+# @config  duration        number  "Duration"     default=10  min=0   max=3600    unit=s    help="Set 0 = System Time per app"
+# @config  show_fans       bool    "Show Fans"    default=true    help="Show Fans after Live Online in Living Status"
+
+class BilibiliLiveTC002
+  var period, nicon, licon, ic, label, tint, live, page, showing
+  var live_label, fans_label, ticks, fails, in_flight, timeout, flip_timer
+  var show_start, flipped, total, live_ms, fans_ms, show_fans
+
+  def init()
+    self.period = store.get("every") * 60
+    self.nicon = store.get("nicon")
+    self.licon = store.get("licon")
+    self.ic = self.nicon
+    self.label = "..."
+    self.tint = settings.get("textColor")
+    if self.tint == nil self.tint = 0xFFFFFF end
+    var secs = store.get("duration")
+    if secs == 0
+      self.total = settings.get("appDurationMs")
+    else
+      self.total = int(secs * 1000)
+    end
+    if self.total == nil self.total = 7000 end
+    self.live_ms = int(self.total * 0.7)
+    self.fans_ms = self.total - self.live_ms
+    self.show_fans = store.get("show_fans")
+    if self.show_fans == nil self.show_fans = true end
+    self.live = false
+    self.page = 0
+    self.showing = false
+    self.live_label = "..."
+    self.fans_label = "..."
+    self.ticks = 0
+    self.fails = 0
+    self.in_flight = false
+    self.timeout = false
+    self.flip_timer = nil
+    self.show_start = 0
+    self.flipped = false
+  end
+
+  def fmt(v)
+    if v >= 1000000000000 return str(int(v / 1000000000000.0 + 0.5)) + "T" end
+    if v >= 1000000000 return str(int(v / 1000000000.0 + 0.5)) + "G" end
+    if v >= 1000000 return str(int(v / 1000000.0 + 0.5)) + "M" end
+    if v >= 1000 return str(int(v / 1000.0 + 0.5)) + "K" end
+    return str(int(v))
+  end
+
+  def fetch()
+    if self.in_flight || self.timeout return end
+    var room = store.get("roomid")
+    if room == nil || room == "" return end
+    self.in_flight = true
+    var url = "https://api.live.bilibili.com/room/v1/Room/get_info?room_id=" + room
+    http.get(url, / b, st -> self.on_body(b, st))
+  end
+
+  def on_body(body, status)
+    self.in_flight = false
+    var ok = false
+    if body != nil
+      var c = re.search("\"code\":(\\d+)", body)
+      if c != nil && num(c[1]) == 0
+        var a = re.search("\"attention\":(\\d+)", body)
+        var o = re.search("\"online\":(\\d+)", body)
+        var l = re.search("\"live_status\":(\\d+)", body)
+        if a != nil && o != nil && l != nil
+          var fans = num(a[1])
+          var online = num(o[1])
+          var live = num(l[1])
+          if fans != nil && online != nil && live != nil
+            self.live = live == 1
+            self.live_label = self.fmt(online)
+            self.fans_label = self.fmt(fans)
+            if !self.showing self.page = 0 end
+            self.ic = (self.page == 1 || !self.live) ? self.nicon : self.licon
+            self.label = (self.page == 1 || !self.live) ? self.fans_label : self.live_label
+            if self.showing && self.live && self.show_fans && !self.flipped && self.flip_timer == nil
+              var left = self.live_ms - (now_ms() - self.show_start)
+              if left < 500 left = 500 end
+              self.flip_timer = timer.after(left, / -> self.flip_fans())
+            end
+            ok = true
+          end
+        end
+      end
+    end
+    if ok
+      self.fails = 0
+      self.timeout = false
+      var t = settings.get("textColor")
+      if t == nil t = 0xFFFFFF end
+      self.tint = t
+    else
+      self.fails += 1
+      if self.fails >= 3
+        self.timeout = true
+        self.label = "Check ID"
+        self.tint = 0xFFA500
+      else
+        timer.after(5000, / -> self.fetch())
+      end
+    end
+  end
+
+  def loop()
+    if !self.timeout
+      var c = settings.get("textColor")
+      if c != nil self.tint = c end
+    end
+    if self.ticks <= 0
+      self.ticks = self.period
+      self.fetch()
+    end
+    self.ticks -= 1
+  end
+
+  def flip_fans()
+    self.flip_timer = nil
+    self.flipped = true
+    self.page = 1
+    self.ic = self.nicon
+    self.label = self.fans_label
+  end
+
+  def on_show()
+    self.showing = true
+    self.show_start = now_ms()
+    self.flipped = false
+    if self.flip_timer != nil
+      timer.cancel(self.flip_timer)
+      self.flip_timer = nil
+    end
+    self.page = 0
+    self.ic = self.live ? self.licon : self.nicon
+    self.label = self.live ? self.live_label : self.fans_label
+    if self.live && self.show_fans
+      self.flip_timer = timer.after(self.live_ms, / -> self.flip_fans())
+    end
+  end
+
+  def on_hide()
+    self.showing = false
+    if self.flip_timer != nil
+      timer.cancel(self.flip_timer)
+      self.flip_timer = nil
+    end
+    self.page = 0
+  end
+
+  def duration()
+    return self.total
+  end
+
+  def draw()
+    clear()
+    font("large")
+    var iy = (height() - 8) / 2
+    if !icon(self.ic, 4, iy) rect_fill(5, iy + 1, 6, 6, 0x222222) end
+    scroll_text(16, 12, width() - 20, self.label, self.tint)
+  end
+end
+
+return BilibiliLiveTC002()

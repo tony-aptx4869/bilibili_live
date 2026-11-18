@@ -1,0 +1,31 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.fseventsd
+.TemporaryItems
+.Trashes
+Icon?
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Backup and temporary files
+*.bak
+*.orig
+*.rej
+*.tmp
+*.log
+*.ax.bak
+*.ax.tmp
+*.ax.orig
+
+# Local helper scripts
+__pycache__/
+*.py[cod]
