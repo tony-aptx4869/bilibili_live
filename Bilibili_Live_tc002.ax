@@ -1,8 +1,7 @@
-# @hub 5zNUM0Md0J3g af1c7a8a9571008fe138b32542bb0214e3133aec9f2a26982eef76b6add12837
 # @name    Bilibili Live
 # @desc    Bilibili live status and follower count for TC002 (52x16)
 # @author  Tony Chang (github.com/tony-aptx4869)
-# @version 1.9
+# @version 1.9.1
 # @display 52x16
 # @icons   bilibiliblink, bilibililive
 # @config  roomid          text    "Room ID"      default="6" help="The number in live.bilibili.com/<roomid>"

@@ -1,8 +1,7 @@
-# @hub LzgkgCuRbhs5 e2df26b51cff8deacdc7a17ce41ff4d5874f8bfc8bf996b16cb2b3fabae1195f
 # @name    Bilibili Live
 # @desc    Bilibili live status and follower count
 # @author  Tony Chang (github.com/tony-aptx4869)
-# @version 1.9
+# @version 1.9.1
 # @icons   bilibiliblink, bilibililive
 # @config  roomid          text    "Room ID"      default="6" help="The number in live.bilibili.com/<roomid>"
 # @config  nicon           text    "Normal Icon"  default="bilibiliblink"   help="Custom Normal Icon"
