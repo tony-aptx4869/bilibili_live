@@ -1,7 +1,7 @@
-# @name    Bilibili Live
-# @desc    Bilibili Streaming Status & Follower Count
-# @author  Tony Chang (github.com/tony-aptx4869)
-# @version 2.0
+# @name Bilibili Live
+# @desc    Bilibili Live & Followers
+# @author Tony Chang (github.com/tony-aptx4869)
+# @version 2.1
 # @icons   bilibiliblink, bilibililive
 # @config fllwmode bool "Follower Mode" default=false help="Only show Follower Count using UID below"
 # @config uid text "UID" default="9617619" help="The number in space.bilibili.com/<uid>"
@@ -11,14 +11,11 @@
 # @config showfllw bool "Show Follower Count" default=true help="Show Follower Count after Viewers Online in Living Status"
 # @config every number "Refresh" default=1 min=1 max=1440 unit=min
 # @config duration number "Duration" default=10 min=0 max=3600 unit=s help="Set 0 = System Time per app"
-
 import gc
-
 class BilibiliLive
   var period, nicon, sicon, ic, label, tint, live, showing
   var live_label, fans_label, ticks, fails, in_flight, timeout, flip_timer
-  var show_start, flipped, total, live_ms, showfllw, fllwmode, uid
-
+  var fetch_start, flipped, total, live_ms, showfllw, fllwmode, uid
   def init()
     self.period = store.get("every") * 60
     self.nicon = store.get("nicon")
@@ -33,7 +30,7 @@ class BilibiliLive
     else
       self.total = int(secs * 1000)
     end
-    if self.total == nil self.total = 7000 end
+    if self.total == nil self.total = 10000 end
     self.live_ms = int(self.total * 0.7)
     self.showfllw = store.get("showfllw")
     if self.showfllw == nil self.showfllw = true end
@@ -48,10 +45,9 @@ class BilibiliLive
     self.in_flight = false
     self.timeout = false
     self.flip_timer = nil
-    self.show_start = 0
+    self.fetch_start = 0
     self.flipped = false
   end
-
   def fmt(v)
     if v >= 1000000000000 return str(int(v / 1000000000000.0 + 0.5)) + "T" end
     if v >= 1000000000 return str(int(v / 1000000000.0 + 0.5)) + "G" end
@@ -59,7 +55,6 @@ class BilibiliLive
     if v >= 1000 return str(int(v / 1000.0 + 0.5)) + "K" end
     return str(int(v))
   end
-
   def fetch()
     if self.in_flight || self.timeout return end
     var url = ""
@@ -74,9 +69,10 @@ class BilibiliLive
     end
     self.in_flight = true
     gc.collect()
-    http.get(url, / b, st -> self.on_body(b, st))
+    self.fetch_start = now_ms()
+    var cap = self.fllwmode ? 128 : 199
+    http.get(url, / b, st -> self.on_body(b, st), {'cap': cap})
   end
-
   def on_body(body, status)
     self.in_flight = false
     var ok = false
@@ -112,9 +108,7 @@ class BilibiliLive
               self.ic = (self.flipped || !self.live) ? self.nicon : self.sicon
               self.label = (self.flipped || !self.live) ? self.fans_label : self.live_label
               if self.showing && self.live && self.showfllw && !self.flipped && self.flip_timer == nil
-                var left = self.live_ms - (now_ms() - self.show_start)
-                if left < 500 left = 500 end
-                self.flip_timer = timer.after(left, / -> self.flip(true))
+                self.flip_timer = timer.after(self.live_ms, / -> self.flip(true))
               end
               ok = true
             end
@@ -132,18 +126,24 @@ class BilibiliLive
       self.fails += 1
       if self.fails >= 3
         self.timeout = true
+        if self.flip_timer != nil
+          timer.cancel(self.flip_timer)
+          self.flip_timer = nil
+        end
         self.label = "Check ID"
         self.tint = 0xFFA500
       else
-        timer.after(5000, / -> self.fetch())
+        timer.after(3000, / -> self.fetch())
       end
     end
   end
-
   def loop()
     if !self.timeout
       var c = settings.get("textColor")
       if c != nil self.tint = c end
+    end
+    if self.in_flight && now_ms() - self.fetch_start > 12000
+      self.on_body(nil, 0)
     end
     if self.ticks <= 0
       self.ticks = self.period
@@ -151,8 +151,8 @@ class BilibiliLive
     end
     self.ticks -= 1
   end
-
   def flip(to_fans)
+    if self.timeout return end
     self.flip_timer = nil
     self.flipped = to_fans
     self.ic = to_fans ? self.nicon : self.sicon
@@ -162,10 +162,8 @@ class BilibiliLive
       self.flip_timer = timer.after(d, / -> self.flip(!to_fans))
     end
   end
-
   def on_show()
     self.showing = true
-    self.show_start = now_ms()
     self.flipped = false
     if self.flip_timer != nil
       timer.cancel(self.flip_timer)
@@ -177,7 +175,6 @@ class BilibiliLive
       self.flip_timer = timer.after(self.live_ms, / -> self.flip(true))
     end
   end
-
   def on_hide()
     self.showing = false
     if self.flip_timer != nil
@@ -185,16 +182,13 @@ class BilibiliLive
       self.flip_timer = nil
     end
   end
-
   def duration()
     return self.total
   end
-
   def draw()
     clear()
     if !icon(self.ic, 0, 0) rect_fill(1, 1, 6, 6, 0x222222) end
     scroll_text(9, 6, width() - 9, self.label, self.tint)
   end
 end
-
 return BilibiliLive()
